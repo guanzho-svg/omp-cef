@@ -13,6 +13,7 @@ jobs:
 
     env:
       VCPKG_ROOT: ${{ github.workspace }}\vcpkg
+      VCPKG_FORCE_DOWNLOADED_BINARIES: "1"
 
     steps:
       - uses: actions/checkout@v4

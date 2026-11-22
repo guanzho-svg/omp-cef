@@ -1,0 +1,79 @@
+diff --git a/src/client/core/system/resource_manager.cpp b/src/client/core/system/resource_manager.cpp
+index eb60dc8..1e61a3a 100644
+--- a/src/client/core/system/resource_manager.cpp
++++ b/src/client/core/system/resource_manager.cpp
+@@ -519,6 +519,14 @@ bool ResourceManager::LoadPakIntoVFS(const std::string& resourceName, const std:
+ 		if (!mz_zip_reader_file_stat(&zip, i, &file_stat))
+ 			continue;
+ 
++		// Bound decompression (zip bomb protection, 32-bit process).
++		constexpr mz_uint64 kMaxEntryUncompressedSize = 128ull * 1024 * 1024;
++		if (file_stat.m_is_directory || file_stat.m_uncomp_size > kMaxEntryUncompressedSize)
++		{
++			LOG_WARN("[ResourceManager] Skipping oversized/invalid entry '{}' in PAK", file_stat.m_filename);
++			continue;
++		}
++
+ 		size_t uncomp_size = 0;
+ 		void* p = mz_zip_reader_extract_to_heap(&zip, i, &uncomp_size, 0);
+ 		if (!p)
+diff --git a/src/client/core/ui/download_dialog.cpp b/src/client/core/ui/download_dialog.cpp
+index 8a16035..2de717c 100644
+--- a/src/client/core/ui/download_dialog.cpp
++++ b/src/client/core/ui/download_dialog.cpp
+@@ -15,6 +15,30 @@
+ #include "system/logger.hpp"
+ #include "shared/events.hpp"
+ 
++namespace
++{
++    // Escapes a string for safe use inside a single-quoted JS string literal.
++    std::string EscapeJsString(const std::string& in)
++    {
++        static const char* hex = "0123456789abcdef";
++        std::string out;
++        out.reserve(in.size());
++        for (unsigned char c : in)
++        {
++            if (c == '\\' || c == '\'' || c == '"' || c == '<' || c == '>' || c == '&' || c == '`' || c == '$' || c < 0x20 || c == 0x7F)
++            {
++                out += "\\x";
++                out += hex[c >> 4];
++                out += hex[c & 0xF];
++            }
++            else
++                out += static_cast<char>(c);
++        }
++        return out;
++    }
++}
++
++
+ // Internal loader browser (reserved id)
+ static constexpr int kLoaderBrowserId = 999999;
+ static constexpr const char* kLoaderUrl = "http://cef/__internal/loading.html";
+@@ -157,7 +181,7 @@ void DownloadDialog::Update(uint32_t index, uint64_t received)
+ 
+     const std::string js =
+         "window.__ompcef && window.__ompcef.progress(" +
+-        std::string("'") + fileName + "'," +
++        std::string("'") + EscapeJsString(fileName) + "'," +
+         std::to_string(received) + "," +
+         std::to_string(fileTotal) + "," +
+         std::to_string(overall_received) + "," +
+diff --git a/src/shared/packet-serializer.hpp b/src/shared/packet-serializer.hpp
+index 083c785..8b58325 100644
+--- a/src/shared/packet-serializer.hpp
++++ b/src/shared/packet-serializer.hpp
+@@ -59,6 +59,11 @@ static inline bool ReadBytes(std::istream& is, std::vector<uint8_t>& bytes)
+ 	if (is.gcount() != sizeof(length))
+ 		return false;
+ 
++	// Reject absurd lengths before allocating (untrusted input).
++	constexpr uint32_t kMaxBytesLength = 4u * 1024u * 1024u;
++	if (length > kMaxBytesLength)
++		return false;
++
+ 	if (length > 0) {
+ 		bytes.resize(length);
+ 
