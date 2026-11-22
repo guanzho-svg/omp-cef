@@ -1,4 +1,4 @@
-\xef\xbb\xbf#pragma once
+﻿#pragma once
 
 #include "packet.hpp"
 
@@ -59,8 +59,7 @@ static inline bool ReadBytes(std::istream& is, std::vector<uint8_t>& bytes)
 	if (is.gcount() != sizeof(length))
 		return false;
 
-	// Reject absurd lengths before allocating (untrusted input) and make sure the
-	// stream really holds that many bytes.
+	// Reject absurd lengths before allocating (untrusted input).
 	constexpr uint32_t kMaxBytesLength = 4u * 1024u * 1024u;
 	if (length > kMaxBytesLength)
 		return false;

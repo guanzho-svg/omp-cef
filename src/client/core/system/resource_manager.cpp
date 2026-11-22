@@ -1,4 +1,4 @@
-\xef\xbb\xbf#include "resource_manager.hpp"
+﻿#include "resource_manager.hpp"
 
 #include <cctype>
 #include <filesystem>
