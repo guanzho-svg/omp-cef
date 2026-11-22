@@ -1,4 +1,4 @@
-﻿#include "resource_manager.hpp"
+\xef\xbb\xbf#include "resource_manager.hpp"
 
 #include <cctype>
 #include <filesystem>
@@ -518,6 +518,14 @@ bool ResourceManager::LoadPakIntoVFS(const std::string& resourceName, const std:
 		mz_zip_archive_file_stat file_stat;
 		if (!mz_zip_reader_file_stat(&zip, i, &file_stat))
 			continue;
+
+		// Bound decompression (zip bomb protection, 32-bit process).
+		constexpr mz_uint64 kMaxEntryUncompressedSize = 128ull * 1024 * 1024;
+		if (file_stat.m_is_directory || file_stat.m_uncomp_size > kMaxEntryUncompressedSize)
+		{
+			LOG_WARN("[ResourceManager] Skipping oversized/invalid entry '{}' in PAK", file_stat.m_filename);
+			continue;
+		}
 
 		size_t uncomp_size = 0;
 		void* p = mz_zip_reader_extract_to_heap(&zip, i, &uncomp_size, 0);

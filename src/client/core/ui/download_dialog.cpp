@@ -15,6 +15,30 @@
 #include "system/logger.hpp"
 #include "shared/events.hpp"
 
+namespace
+{
+    // Escapes a string for safe use inside a single-quoted JS string literal.
+    std::string EscapeJsString(const std::string& in)
+    {
+        static const char* hex = "0123456789abcdef";
+        std::string out;
+        out.reserve(in.size());
+        for (unsigned char c : in)
+        {
+            if (c == '\\' || c == '\'' || c == '"' || c == '<' || c == '>' || c == '&' || c == '`' || c == '$' || c < 0x20 || c == 0x7F)
+            {
+                out += "\\x";
+                out += hex[c >> 4];
+                out += hex[c & 0xF];
+            }
+            else
+                out += static_cast<char>(c);
+        }
+        return out;
+    }
+}
+
+
 // Internal loader browser (reserved id)
 static constexpr int kLoaderBrowserId = 999999;
 static constexpr const char* kLoaderUrl = "http://cef/__internal/loading.html";
@@ -157,7 +181,7 @@ void DownloadDialog::Update(uint32_t index, uint64_t received)
 
     const std::string js =
         "window.__ompcef && window.__ompcef.progress(" +
-        std::string("'") + fileName + "'," +
+        std::string("'") + EscapeJsString(fileName) + "'," +
         std::to_string(received) + "," +
         std::to_string(fileTotal) + "," +
         std::to_string(overall_received) + "," +
